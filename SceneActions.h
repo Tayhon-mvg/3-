@@ -3,7 +3,7 @@
 #include <vector>
 #include "Gizmo.h"
 
-// Идентификаторы для контекстного меню Windows
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ Windows
 #define ID_MENU_DELETE  1001
 #define ID_MENU_COPY    1002
 #define ID_MENU_CUT     1003
@@ -11,7 +11,7 @@
 #define ID_MENU_LOCK    1005
 #define ID_MENU_IMPORT_OBJ 1006
 
-// Функция управления сценой
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 void ExecuteSceneAction(
     int actionID,
     std::vector<EditableCube>& cubes,
@@ -21,7 +21,7 @@ void ExecuteSceneAction(
     float spawnX, float spawnY, float spawnZ
 );
 
-// Функция выбора файлов (возвращает системный указатель на строку)
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ (пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ)
 const wchar_t* Open3DFileDialog(HWND hwnd);
-// ДОБАВИТЬ В САМЫЙ КОНЕЦ ФАЙЛА SceneActions.h:
-bool LoadOBJModel(const wchar_t* filename, EditableCube& outModel);
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ SceneActions.h:
+bool LoadOBJModel(c
