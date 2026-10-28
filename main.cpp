@@ -10,7 +10,6 @@
 #pragma comment(lib, "opengl32.lib")
 #pragma comment(lib, "glu32.lib")
 
-// Глобальные переменные движка
 HDC   dc = nullptr;
 HGLRC rc = nullptr;
 GLuint fontBase = 0;
@@ -28,12 +27,10 @@ float fps = 0.0f;
 std::vector<EditableCube> sceneCubes;
 int selectedCubeIndex = -1;
 
-// Переменные для перетаскивания Gizmo стрелок
 GizmoAxis activeGizmoAxis = GIZMO_NONE;
 float dragStartMouseX = 0, dragStartMouseY = 0;
 float dragStartSizeX = 0, dragStartSizeY = 0, dragStartSizeZ = 0;
 
-// Флаги триггеров кликов для главного цикла
 bool triggerLeftClickPicking = false;
 bool triggerDoubleClick = false;
 bool triggerRightClickPicking = false;
@@ -44,7 +41,6 @@ EditableCube clipboardCube;
 bool hasClipboardData = false;
 float lastClickWorldX = 0.0f, lastClickWorldY = 0.0f, lastClickWorldZ = 0.0f;
 
-// Прототипы функций
 void SetPerspective(float fov, float aspect, float nearZ, float farZ);
 void BuildFont(HWND hwnd);
 void RenderText(float x, float y, const std::string& text);
@@ -54,6 +50,51 @@ void GameUpdate(float dt);
 void ScreenToWorldRay(int mouseX, int mouseY, float& outOriginX, float& outOriginY, float& outOriginZ, float& outDirX, float& outDirY, float& outDirZ);
 int GetCubeUnderMouseRay(float ox, float oy, float oz, float dx, float dy, float dz);
 GizmoAxis GetGizmoAxisUnderMouse(int mouseX, int mouseY, const EditableCube& cube);
+// === РџР•Р Р•РќР•РЎР•РќРќР«Р™ РљРћР” РћРўР РРЎРћР’РљР РЎРўР Р•Р›РћР§Р•Рљ Р“РР—РњРћ ===
+void DrawGizmoArrows(const EditableCube& cube) {
+    glDisable(GL_DEPTH_TEST);
+    glPushMatrix();
+    glTranslatef(cube.posX, cube.posY, cube.posZ);
+
+    GLUquadric* quad = gluNewQuadric();
+    gluQuadricDrawStyle(quad, GLU_FILL);
+
+    float stickRadius = 0.02f;
+    float stickLength = 1.2f;
+    float coneRadius = 0.07f;
+    float coneLength = 0.3f;
+    int segments = 12;
+
+    // РћСЃСЊ X - РљСЂР°СЃРЅР°СЏ
+    glPushMatrix();
+    glRotatef(90.0f, 0.0f, 1.0f, 0.0f);
+    glColor3f(0.9f, 0.1f, 0.1f);
+    gluCylinder(quad, stickRadius, stickRadius, stickLength, segments, 1);
+    glTranslatef(0.0f, 0.0f, stickLength);
+    gluCylinder(quad, coneRadius, 0.0f, coneLength, segments, 1);
+    glPopMatrix();
+
+    // РћСЃСЊ Y - Р—РµР»РµРЅР°СЏ
+    glPushMatrix();
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);
+    glColor3f(0.1f, 0.9f, 0.1f);
+    gluCylinder(quad, stickRadius, stickRadius, stickLength, segments, 1);
+    glTranslatef(0.0f, 0.0f, stickLength);
+    gluCylinder(quad, coneRadius, 0.0f, coneLength, segments, 1);
+    glPopMatrix();
+
+    // РћСЃСЊ Z - РЎРёРЅСЏСЏ
+    glPushMatrix();
+    glColor3f(0.1f, 0.1f, 0.9f);
+    gluCylinder(quad, stickRadius, stickRadius, stickLength, segments, 1);
+    glTranslatef(0.0f, 0.0f, stickLength);
+    gluCylinder(quad, coneRadius, 0.0f, coneLength, segments, 1);
+    glPopMatrix();
+
+    gluDeleteQuadric(quad);
+    glPopMatrix();
+    glEnable(GL_DEPTH_TEST);
+}
 
 void SetPerspective(float fov, float aspect, float nearZ, float farZ) {
     float fh = std::tan(fov * 3.14159265f / 360.0f) * nearZ;
@@ -77,29 +118,48 @@ void RenderText(float x, float y, const std::string& text) {
     glCallLists((GLsizei)text.length(), GL_UNSIGNED_BYTE, text.c_str());
 }
 
-// Отрисовка куба с красивым оранжевым Blender-контуром
 void DrawEditableCube(const EditableCube& cube) {
     if (!cube.exists) return;
 
-    glPushMatrix();
+    glPushMatrix(); // РњР°С‚СЂРёС†Сѓ СЃРѕР·РґР°РµРј СЂРѕРІРЅРѕ РћР”РРќ СЂР°Р·
     glTranslatef(cube.posX, cube.posY, cube.posZ);
 
     if (cube.isCustomModel) {
-        // --- ОТРИСОВКА ЗАГРУЖЕННОЙ 3D МОДЕЛИ ---
-        glBegin(GL_TRIANGLES);
-        if (cube.isLocked) glColor3f(0.5f, 0.1f, 0.1f);
-        else glColor3f(0.6f, 0.6f, 0.6f); // Стандартный серый цвет сетки модели
+        // РђРїРїР°СЂР°С‚РЅРѕРµ РјР°СЃС€С‚Р°Р±РёСЂРѕРІР°РЅРёРµ РўРћР›Р¬РљРћ РґР»СЏ РєР°СЃС‚РѕРјРЅС‹С… 3D-РјРѕРґРµР»РµР№
+        glScalef(cube.scaleX, cube.scaleY, cube.scaleZ);
 
-        for (const auto& face : cube.faces) {
-            // Рисуем треугольник по индексам из файла
-            glVertex3f(cube.vertices[face.v1].x, cube.vertices[face.v1].y, cube.vertices[face.v1].z);
-            glVertex3f(cube.vertices[face.v2].x, cube.vertices[face.v2].y, cube.vertices[face.v2].z);
-            glVertex3f(cube.vertices[face.v3].x, cube.vertices[face.v3].y, cube.vertices[face.v3].z);
+        glEnable(GL_LIGHTING);
+        glEnable(GL_LIGHT0);
+        glEnable(GL_COLOR_MATERIAL);
+        glEnable(GL_AUTO_NORMAL);
+
+        float lightPos[] = { 3.0f, 6.0f, 3.0f, 1.0f };
+        glLightfv(GL_LIGHT0, GL_POSITION, lightPos);
+
+        if (cube.isLocked) glColor3f(0.5f, 0.1f, 0.1f);
+        else glColor3f(0.6f, 0.6f, 0.6f);
+
+        EditableCube& mutableCube = const_cast<EditableCube&>(cube);
+
+        // РљРѕРјРїРёР»СЏС†РёСЏ РјРѕРґРµР»Рё РІ VRAM РІРёРґРµРѕРєР°СЂС‚С‹ (РїСЂРѕРёСЃС…РѕРґРёС‚ РѕРґРёРЅ СЂР°Р· РїСЂРё РёРјРїРѕСЂС‚Рµ)
+        if (mutableCube.displayListId == 0) {
+            mutableCube.displayListId = glGenLists(1);
+            glNewList(mutableCube.displayListId, GL_COMPILE);
+            glBegin(GL_TRIANGLES);
+            for (const auto& face : cube.faces) {
+                glVertex3f(cube.vertices[face.v1].x, cube.vertices[face.v1].y, cube.vertices[face.v1].z);
+                glVertex3f(cube.vertices[face.v2].x, cube.vertices[face.v2].y, cube.vertices[face.v2].z);
+                glVertex3f(cube.vertices[face.v3].x, cube.vertices[face.v3].y, cube.vertices[face.v3].z);
+            }
+            glEnd();
+            glEndList();
         }
-        glEnd();
+
+        glCallList(mutableCube.displayListId); // РЎРІРµСЂС…Р±С‹СЃС‚СЂС‹Р№ СЂРµРЅРґРµСЂРёРЅРі Р±РµР· С†РёРєР»РѕРІ РїСЂРѕС†РµСЃСЃРѕСЂР°
+        glDisable(GL_LIGHTING);
     }
     else {
-        // --- СТАНДАРТНАЯ ОТРИСОВКА КУБА ---
+        // --- РўР’РћР™ РЎРўРђРќР”РђР РўРќР«Р™ Р РђР‘РћР§РР™ РљРћР” РћРўР РРЎРћР’РљР РљРЈР‘Рђ ---
         glBegin(GL_QUADS);
         for (int face = 0; face < 6; ++face) {
             if (cube.isLocked) glColor3f(0.5f, 0.1f, 0.1f);
@@ -118,7 +178,7 @@ void DrawEditableCube(const EditableCube& cube) {
         glEnd();
     }
 
-    // Оранжевая обводка Blender-style автоматически подстроится под габариты модели!
+    // РўРІРѕР№ СЃС‚Р°СЂС‹Р№ РєРѕРґ РѕСЂР°РЅР¶РµРІРѕРіРѕ РєРѕРЅС‚СѓСЂР° РІС‹РґРµР»РµРЅРёСЏ (Blender-style Outline) РґР»СЏ РІС‹РґРµР»РµРЅРЅРѕРіРѕ РѕР±СЉРµРєС‚Р°
     if (cube.isSelected && !cube.isLocked) {
         glDisable(GL_DEPTH_TEST); glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); glLineWidth(3.0f); glColor3f(1.0f, 0.5f, 0.0f);
         glBegin(GL_QUADS);
@@ -133,25 +193,24 @@ void DrawEditableCube(const EditableCube& cube) {
         glEnd();
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); glLineWidth(1.0f); glEnable(GL_DEPTH_TEST);
     }
-    glPopMatrix();
+
+    glPopMatrix(); // Р—Р°РєСЂС‹РІР°РµРј РјР°С‚СЂРёС†Сѓ СЂРѕРІРЅРѕ РћР”РРќ СЂР°Р· РІ СЃР°РјРѕРј РєРѕРЅС†Рµ С„СѓРЅРєС†РёРё
 }
 
 
-// Поиск ближайшей стрелки методом 2D-проекции кончиков осей на экран (100% попадание на ЛКМ)
 GizmoAxis GetGizmoAxisUnderMouse(int mouseX, int mouseY, const EditableCube& cube) {
-    GLint viewport[4];       // ИСПРАВЛЕНО: Теперь это честный массив из 4 элементов
-    GLdouble modelview[16];   // ИСПРАВЛЕНО: Матрица 4x4 (16 элементов)
-    GLdouble projection[16];  // ИСПРАВЛЕНО: Матрица 4x4 (16 элементов)
+    GLint viewport[4];       // Р¤РРљРЎ РўРРџРђ РњРђРЎРЎРР’Рђ
+    GLdouble modelview[16];   // Р¤РРљРЎ РўРРџРђ РњРђРЎРЎРР’Рђ
+    GLdouble projection[16];  // Р¤РРљРЎ РўРРџРђ РњРђРЎРЎРР’Рђ
 
     glGetIntegerv(GL_VIEWPORT, viewport);
     glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
     glGetDoublev(GL_PROJECTION_MATRIX, projection);
 
-    // ИСПРАВЛЕНО: Двумерный массив [3][3] под 3D-координаты кончиков стрелок
     double arrowPos[3][3] = {
-        { (double)cube.posX + 1.5, (double)cube.posY, (double)cube.posZ }, // X
-        { (double)cube.posX, (double)cube.posY + 1.5, (double)cube.posZ }, // Y
-        { (double)cube.posX, (double)cube.posY, (double)cube.posZ + 1.5 }  // Z
+        { (double)cube.posX + 1.2, (double)cube.posY, (double)cube.posZ },
+        { (double)cube.posX, (double)cube.posY + 1.2, (double)cube.posZ },
+        { (double)cube.posX, (double)cube.posY, (double)cube.posZ + 1.2 }
     };
 
     double winX, winY, winZ;
@@ -159,9 +218,8 @@ GizmoAxis GetGizmoAxisUnderMouse(int mouseX, int mouseY, const EditableCube& cub
     GizmoAxis detectedAxis = GIZMO_NONE;
 
     for (int i = 0; i < 3; ++i) {
-        // ИСПРАВЛЕНО: Теперь передаем конкретные ячейки массива [i][0], [i][1], [i][2]
         if (gluProject(arrowPos[i][0], arrowPos[i][1], arrowPos[i][2], modelview, projection, viewport, &winX, &winY, &winZ)) {
-            float screenArrowY = (float)viewport[3] - (float)winY; // ИСПРАВЛЕНО: Высота экрана берется из viewport[3]
+            float screenArrowY = (float)viewport[3] - (float)winY;
             float dx = (float)mouseX - (float)winX;
             float dy = (float)mouseY - screenArrowY;
             float dist = std::sqrt(dx * dx + dy * dy);
@@ -175,52 +233,37 @@ GizmoAxis GetGizmoAxisUnderMouse(int mouseX, int mouseY, const EditableCube& cub
     return detectedAxis;
 }
 
-
-// Генерация 3D-луча взгляда из курсора мыши для двойного клика
-// --- ЗАМЕНИТЕ ЭТУ ФУНКЦИЮ ПОЛНОСТЬЮ ---
 void ScreenToWorldRay(int mouseX, int mouseY, float& outOriginX, float& outOriginY, float& outOriginZ, float& outDirX, float& outDirY, float& outDirZ) {
-    // ЗАМЕНИ ЭТИ СТРОКИ В НАЧАЛЕ ScreenToWorldRay:
-    GLint viewport[4];       // Теперь это честный массив из 4 элементов
-    GLdouble modelview[16];  // Матрица 4x4 (16 элементов)
-    GLdouble projection[16]; // Матрица 4x4 (16 элементов)
+    GLint viewport[4];       // Р¤РРљРЎ РўРРџРђ РњРђРЎРЎРР’Рђ
+    GLdouble modelview[16];  // Р¤РРљРЎ РўРРџРђ РњРђРЎРЎРР’Рђ
+    GLdouble projection[16]; // Р¤РРљРЎ РўРРџРђ РњРђРЎРЎРР’Рђ
     GLdouble posX, posY, posZ;
 
     glGetIntegerv(GL_VIEWPORT, viewport);
     glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
     glGetDoublev(GL_PROJECTION_MATRIX, projection);
 
-    // В OpenGL координата Y растет снизу вверх, переворачиваем её относительно высоты окна
     GLdouble openGLMouseY = (GLdouble)(viewport[3] - mouseY);
 
-    // Считаем точку на ближней плоскости отсечения (Z = 0.0)
     gluUnProject((GLdouble)mouseX, openGLMouseY, 0.0, modelview, projection, viewport, &posX, &posY, &posZ);
     outOriginX = (float)posX; outOriginY = (float)posY; outOriginZ = (float)posZ;
 
-    // Считаем точку на дальней плоскости отсечения (Z = 1.0)
     GLdouble posXFar, posYFar, posZFar;
     gluUnProject((GLdouble)mouseX, openGLMouseY, 1.0, modelview, projection, viewport, &posXFar, &posYFar, &posZFar);
 
-    // Вычисляем вектор направления луча мыши
     float dx = (float)posXFar - (float)posX;
     float dy = (float)posYFar - (float)posY;
     float dz = (float)posZFar - (float)posZ;
     float len = std::sqrt(dx * dx + dy * dy + dz * dz);
 
-    // Нормализуем вектор (приводим к длине = 1.0)
     if (len > 0.001f) {
-        outDirX = dx / len;
-        outDirY = dy / len;
-        outDirZ = dz / len;
+        outDirX = dx / len; outDirY = dy / len; outDirZ = dz / len;
     }
     else {
-        outDirX = 0.0f;
-        outDirY = 0.0f;
-        outDirZ = -1.0f;
+        outDirX = 0.0f; outDirY = 0.0f; outDirZ = -1.0f;
     }
 }
 
-
-// Математический ААВВ-тест пересечения луча с кубом (Идеально для двойного клика) [cite: 1]
 int GetCubeUnderMouseRay(float ox, float oy, float oz, float dx, float dy, float dz) {
     int closestIndex = -1; float minT = 99999.0f;
     for (size_t i = 0; i < sceneCubes.size(); ++i) {
@@ -228,19 +271,19 @@ int GetCubeUnderMouseRay(float ox, float oy, float oz, float dx, float dy, float
         const auto& cube = sceneCubes[i];
         float lOx = ox - cube.posX; float lOy = oy - cube.posY; float lOz = oz - cube.posZ;
 
-        float tmin = (cube.xMin - lOx) / (dx + 0.00001f); float tmax = (cube.xMax - lOx) / (dx + 0.00001f);
-        if (tmin > tmax) std::swap(tmin, tmax);
-        float tymin = (cube.yMin - lOy) / (dy + 0.00001f); float tymax = (cube.yMax - lOy) / (dy + 0.00001f);
-        if (tymin > tymax) std::swap(tymin, tymax);
-        if ((tmin > tymax) || (tymin > tmax)) continue;
-        if (tymin > tmin) tmin = tymin;
-        if (tymax < tmax) tmax = tymax;
-        float tzmin = (cube.zMin - lOz) / (dz + 0.00001f); float tzmax = (cube.zMax - lOz) / (dz + 0.00001f);
-        if (tzmin > tzmax) std::swap(tzmin, tzmax);
-        if((tmin > tzmax) || (tzmin > tmax)) continue;
-        if (tzmin > tmin) tmin = tzmin;
-        if (tzmax < tmax) tmax = tzmax;
-        if (tmin > 0.0f && tmin < minT) { minT = tmin; closestIndex = (int)i; }
+        float t1 = (cube.xMin - lOx) / (dx == 0.0f ? 0.00001f : dx);
+        float t2 = (cube.xMax - lOx) / (dx == 0.0f ? 0.00001f : dx);
+        float t3 = (cube.yMin - lOy) / (dy == 0.0f ? 0.00001f : dy);
+        float t4 = (cube.yMax - lOy) / (dy == 0.0f ? 0.00001f : dy);
+        float t5 = (cube.zMin - lOz) / (dz == 0.0f ? 0.00001f : dz);
+        float t6 = (cube.zMax - lOz) / (dz == 0.0f ? 0.00001f : dz);
+        float min1 = (t1 < t2) ? t1 : t2; float min2 = (t3 < t4) ? t3 : t4; float min3 = (t5 < t6) ? t5 : t6;
+        float tmin = (min1 > min2) ? ((min1 > min3) ? min1 : min3) : ((min2 > min3) ? min2 : min3);
+        float max1 = (t1 > t2) ? t1 : t2; float max2 = (t3 > t4) ? t3 : t4; float max3 = (t5 > t6) ? t5 : t6;
+        float tmax = (max1 < max2) ? ((max1 < max3) ? max1 : max3) : ((max2 < max3) ? max2 : max3);
+        if (tmax >= 0.0f && tmin <= tmax) {
+            if (tmin < minT) { minT = tmin; closestIndex = (int)i; }
+        }
     }
     return closestIndex;
 }
@@ -258,35 +301,21 @@ bool Init3D(HWND hwnd) {
 void GameUpdate(float dt) {
     if (camPitch > 89.0f)  camPitch = 89.0f;
     if (camPitch < -89.0f) camPitch = -89.0f;
-
     float yawRad = camYaw * 3.14159265f / 180.0f;
     float pitchRad = camPitch * 3.14159265f / 180.0f;
-
     lookX = std::cos(pitchRad) * std::cos(yawRad);
     lookY = std::sin(pitchRad);
     lookZ = std::cos(pitchRad) * std::sin(yawRad);
-
-    float speed = 4.0f * dt; // Скорость полёта камеры
-
+    float speed = 4.0f * dt;
     if (activeGizmoAxis == GIZMO_NONE) {
-        // Стандартное перемещение по горизонтали/взгляду (WASD)
         if (GetAsyncKeyState('W') & 0x8000) { camX += lookX * speed; camY += lookY * speed; camZ += lookZ * speed; }
         if (GetAsyncKeyState('S') & 0x8000) { camX -= lookX * speed; camY -= lookY * speed; camZ -= lookZ * speed; }
         if (GetAsyncKeyState('A') & 0x8000) { camX -= -lookZ * speed; camZ -= lookX * speed; }
         if (GetAsyncKeyState('D') & 0x8000) { camX += -lookZ * speed; camZ -= lookX * speed; }
-
-        // --- ДОБАВЛЕНО: Вертикальный полёт (Пробел и Левый Shift) ---
-        // VK_SPACE — Пробел (взлёт строго вверх по оси Y)
-        if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
-            camY += speed;
-        }
-        // VK_LSHIFT — Левый Shift (спуск строго вниз по оси Y)
-        if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) {
-            camY -= speed;
-        }
+        if (GetAsyncKeyState(VK_SPACE) & 0x8000) camY += speed;
+        if (GetAsyncKeyState(VK_LSHIFT) & 0x8000) camY -= speed;
     }
 }
-
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     static int lastX = 0, lastY = 0;
     switch (msg) {
@@ -309,10 +338,20 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             float deltaX = (float)(mouseX - dragStartMouseX) * 0.015f;
             float deltaY = (float)(mouseY - dragStartMouseY) * -0.015f;
             auto& cube = sceneCubes[selectedCubeIndex];
+
+            // Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РЅРѕРІС‹Рµ РіР°Р±Р°СЂРёС‚С‹ AABB РґР»СЏ Gizmo Рё РєР»РёРєРѕРІ
             if (activeGizmoAxis == GIZMO_X) { float nX = dragStartSizeX + deltaX * 2.0f; if (nX < 0.1f) nX = 0.1f; cube.xMin = -nX / 2.0f; cube.xMax = nX / 2.0f; }
             if (activeGizmoAxis == GIZMO_Y) { float nY = dragStartSizeY + deltaY * 2.0f; if (nY < 0.1f) nY = 0.1f; cube.yMin = -nY / 2.0f; cube.yMax = nY / 2.0f; }
             if (activeGizmoAxis == GIZMO_Z) { float nZ = dragStartSizeZ + (deltaX - deltaY) * 1.0f; if (nZ < 0.1f) nZ = 0.1f; cube.zMin = -nZ / 2.0f; cube.zMax = nZ / 2.0f; }
+
+            // Р•СЃР»Рё СЌС‚Рѕ РєР°СЃС‚РѕРјРЅР°СЏ РјРѕРґРµР»СЊ, РїСЂРѕСЃС‚Рѕ РѕР±РЅРѕРІР»СЏРµРј РєРѕСЌС„С„РёС†РёРµРЅС‚С‹ РґР»СЏ РІРёРґРµРѕРєР°СЂС‚С‹ (Р±РµР· С†РёРєР»РѕРІ!)
+            if (cube.isCustomModel) {
+                cube.scaleX = (cube.xMax - cube.xMin) / dragStartSizeX;
+                cube.scaleY = (cube.yMax - cube.yMin) / dragStartSizeY;
+                cube.scaleZ = (cube.zMax - cube.zMin) / dragStartSizeZ;
+            }
         }
+
         else if (wp & MK_LBUTTON && activeGizmoAxis == GIZMO_NONE) {
             camYaw += (mouseX - lastX) * 0.2f; camPitch -= (mouseY - lastY) * 0.2f;
         }
@@ -325,38 +364,68 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         lastClickWorldX = camX + lookX * 3.0f; lastClickWorldY = camY + lookY * 3.0f; lastClickWorldZ = camZ + lookZ * 3.0f;
         POINT p = { clickMouseX, clickMouseY }; ClientToScreen(hwnd, &p);
         HMENU hMenu = CreatePopupMenu();
-        if (selectedCubeIndex != -1) {
+        if (selectedCubeIndex != -1 && selectedCubeIndex < (int)sceneCubes.size() && sceneCubes[selectedCubeIndex].exists) {
             bool isLocked = sceneCubes[selectedCubeIndex].isLocked;
-            AppendMenuW(hMenu, isLocked ? MF_GRAYED : MF_STRING, ID_MENU_DELETE, L"Удалить (Delete)");
-            AppendMenuW(hMenu, isLocked ? MF_GRAYED : MF_STRING, ID_MENU_COPY, L"Копировать (Copy)");
-            AppendMenuW(hMenu, isLocked ? MF_GRAYED : MF_STRING, ID_MENU_CUT, L"Вырезать (Cut)");
-            AppendMenuW(hMenu, MF_STRING, ID_MENU_LOCK, isLocked ? L"Открепить (Unlock)" : L"Закрепить (Lock)");
+            AppendMenuW(hMenu, isLocked ? MF_GRAYED : MF_STRING, 1001, L"РЈРґР°Р»РёС‚СЊ (Delete)");
+            AppendMenuW(hMenu, isLocked ? MF_GRAYED : MF_STRING, 1002, L"РљРѕРїРёСЂРѕРІР°С‚СЊ (Copy)");
+            AppendMenuW(hMenu, isLocked ? MF_GRAYED : MF_STRING, 1003, L"Р’С‹СЂРµР·Р°С‚СЊ (Cut)");
+            AppendMenuW(hMenu, MF_STRING, 1005, isLocked ? L"Р Р°Р·Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ (Unlock)" : L"Р—Р°Р±Р»РѕРєРёСЂРѕРІР°С‚СЊ (Lock)");
         }
-        else { AppendMenuW(hMenu, hasClipboardData ? MF_STRING : MF_GRAYED, ID_MENU_PASTE, L"Вставить (Paste)"); }
+        else { AppendMenuW(hMenu, hasClipboardData ? MF_STRING : MF_GRAYED, 1004, L"Р’СЃС‚Р°РІРёС‚СЊ (Paste)"); }
         TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, p.x, p.y, 0, hwnd, nullptr); DestroyMenu(hMenu); break;
     }
     case WM_COMMAND: {
         int wmId = LOWORD(wp);
-        if (wmId == ID_MENU_IMPORT_OBJ) {
+        if (wmId == 1006) { // ID_MENU_IMPORT_OBJ
             const wchar_t* filePath = Open3DFileDialog(hwnd);
-            if (filePath != nullptr && filePath[0] != L'\0') {
+            if (filePath != nullptr) {
+                std::wstring selectedPath(filePath);
+                std::wstring finalPath = selectedPath;
+                bool is3MF = false;
+
+                if (selectedPath.length() > 4 && selectedPath.substr(selectedPath.length() - 3) == L"3mf") {
+                    is3MF = true;
+                    std::wstring outputDir = selectedPath.substr(0, selectedPath.find_last_of(L'\\')) + L"\\_tmp_3mf";
+
+                    // РРЎРџР РђР’Р›Р•РќРћ: РџРµСЂРµРґР°РµРј СѓРєР°Р·Р°С‚РµР»СЊ .c_str() РґР»СЏ СЃРёСЃС‚РµРјРЅРѕР№ Win32 С„СѓРЅРєС†РёРё
+                    CreateDirectoryW(outputDir.c_str(), nullptr);
+
+                    // РРЎРџР РђР’Р›Р•РќРћ РЎРРќРўРђРљРЎРР§Р•РЎРљР: РРґРµР°Р»СЊРЅС‹Рµ РєР°РІС‹С‡РєРё РґР»СЏ tar.exe
+                    std::wstring cmd = L"tar.exe -xf \"" + selectedPath + L"\" -C \"" + outputDir + L"\"";
+
+                    STARTUPINFOW si = { sizeof(si) };
+                    PROCESS_INFORMATION pi;
+                    si.dwFlags = STARTF_USESHOWWINDOW; si.wShowWindow = SW_HIDE;
+
+                    if (CreateProcessW(nullptr, const_cast<wchar_t*>(cmd.c_str()), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) {
+                        WaitForSingleObject(pi.hProcess, INFINITE);
+                        CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+                    }
+                    finalPath = outputDir + L"\\3D\\3dmodel.model";
+                }
+
                 EditableCube newModel;
-                // Загружаем геометрию из выбранного .obj файла
-                if (LoadOBJModel(filePath, newModel)) {
-                    // Спавним объект строго перед глазами пользователя в 3D пространстве
+                // РРЎРџР РђР’Р›Р•РќРћ: РџРµСЂРµРґР°РµРј finalPath.c_str() РІ LoadOBJModel
+                if (LoadOBJModel(finalPath.c_str(), newModel)) {
                     newModel.posX = camX + lookX * 3.0f;
                     newModel.posY = camY + lookY * 3.0f;
                     newModel.posZ = camZ + lookZ * 3.0f;
-
                     newModel.isSelected = false;
                     newModel.isLocked = false;
                     newModel.exists = true;
-
-                    // Добавляем модель в общий список сцены
                     sceneCubes.push_back(newModel);
                 }
                 else {
-                    MessageBoxW(hwnd, L"Не удалось прочитать или распарсить OBJ файл.", L"Ошибка импорта", MB_OK | MB_ICONERROR);
+                    MessageBoxW(hwnd, L"РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃРїР°СЂСЃРёС‚СЊ РіРµРѕРјРµС‚СЂРёСЋ С„Р°Р№Р»Р°.", L"РћС€РёР±РєР° РёРјРїРѕСЂС‚Р°", MB_OK | MB_ICONERROR);
+                }
+
+                if (is3MF) {
+                    std::wstring outputDir = selectedPath.substr(0, selectedPath.find_last_of(L'\\')) + L"\\_tmp_3mf";
+                    std::wstring modelFile = outputDir + L"\\3D\\3dmodel.model";
+                    std::wstring dir3D = outputDir + L"\\3D";
+                    DeleteFileW(modelFile.c_str());
+                    RemoveDirectoryW(dir3D.c_str());
+                    RemoveDirectoryW(outputDir.c_str());
                 }
             }
         }
@@ -365,8 +434,6 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         break;
     }
-
-
     case WM_DESTROY: glDeleteLists(fontBase, 96); PostQuitMessage(0); break;
     default: return DefWindowProc(hwnd, msg, wp, lp);
     }
@@ -376,23 +443,16 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show) {
     const wchar_t myClassName[] = L"EngineWindow"; WNDCLASSW w = {}; w.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC | CS_DBLCLKS;
     w.lpfnWndProc = WndProc; w.hInstance = hInst; w.hCursor = LoadCursor(nullptr, IDC_ARROW); w.lpszClassName = myClassName;
     RegisterClassW(&w);
-        // 1. Создаем меню
     HMENU hTopMenu = CreateMenu();
     HMENU hFileSubMenu = CreatePopupMenu();
-    AppendMenuW(hFileSubMenu, MF_STRING, ID_MENU_IMPORT_OBJ, L"Импортировать 3D файл (.obj)...");
-    AppendMenuW(hTopMenu, MF_POPUP, (UINT_PTR)hFileSubMenu, L"Файл");
-    
-    // 2. Объявляем переменнную окна ИМЕННО ЗДЕСЬ (добавлено HWND):
+    AppendMenuW(hFileSubMenu, MF_STRING, 1006, L"РРјРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ 3D С„Р°Р№Р» (.obj/.3mf)...");
+    AppendMenuW(hTopMenu, MF_POPUP, (UINT_PTR)hFileSubMenu, L"Р¤Р°Р№Р»");
     HWND hwnd = CreateWindowExW(0, myClassName, L"Blender Gizmo Editor Hybrid",
         WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0, 800, 600,
         nullptr, hTopMenu, hInst, nullptr);
-
-    // 3. Передаем в глобальные переменные движка и запускаем
-    MainWindow = hwnd; 
-    ShowWindow(hwnd, show); 
+    MainWindow = hwnd;
+    ShowWindow(hwnd, show);
     if (!Init3D(hwnd)) return 0;
-
-
     LARGE_INTEGER freq, t1, t2; QueryPerformanceFrequency(&freq); QueryPerformanceCounter(&t1);
     float acc = 0.0f; int frames = 0; MSG msg = {}; std::string uiText = "";
     while (msg.message != WM_QUIT) {
@@ -405,10 +465,8 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show) {
             glClearColor(0.2f, 0.2f, 0.2f, 1.0f); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
             glMatrixMode(GL_PROJECTION); glLoadIdentity(); SetPerspective(60.0f, (float)screenW / screenH, 0.1f, 100.0f);
             glMatrixMode(GL_MODELVIEW); glLoadIdentity(); gluLookAt(camX, camY, camZ, camX + lookX, camY + lookY, camZ + lookZ, 0.0f, 1.0f, 0.0f);
-            // --- ГИБРИДНЫЙ ОБСЧЕТ КЛИКОВ МЫШИ (СТРОГО ПОД МАТРИЦАМИ) ---
-            // 1. Одиночный ЛКМ: Ищет 2D-пиксели стрелочек на экране (Метод Проекций)
             if (triggerLeftClickPicking) {
-                if (selectedCubeIndex != -1 && !sceneCubes[selectedCubeIndex].isLocked) {
+                if (selectedCubeIndex != -1 && selectedCubeIndex < (int)sceneCubes.size() && sceneCubes[selectedCubeIndex].exists && !sceneCubes[selectedCubeIndex].isLocked) {
                     activeGizmoAxis = GetGizmoAxisUnderMouse(clickMouseX, clickMouseY, sceneCubes[selectedCubeIndex]);
                     if (activeGizmoAxis != GIZMO_NONE) {
                         const auto& cube = sceneCubes[selectedCubeIndex];
@@ -419,24 +477,23 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show) {
                 }
                 triggerLeftClickPicking = false;
             }
-            // 2. Двойной ЛКМ: Ищет 3D-геометрию куба в пространстве (Метод Лучей)
             if (triggerDoubleClick) {
                 float ox, oy, oz, dx, dy, dz;
                 ScreenToWorldRay(clickMouseX, clickMouseY, ox, oy, oz, dx, dy, dz);
                 int clickedCube = GetCubeUnderMouseRay(ox, oy, oz, dx, dy, dz);
-                if (clickedCube != -1) {
+                if (clickedCube != -1 && clickedCube < (int)sceneCubes.size() && sceneCubes[clickedCube].exists) {
                     if (selectedCubeIndex == clickedCube) {
                         sceneCubes[selectedCubeIndex].isSelected = false;
                         selectedCubeIndex = -1;
                     }
                     else {
-                        if (selectedCubeIndex != -1) sceneCubes[selectedCubeIndex].isSelected = false;
+                        if (selectedCubeIndex != -1 && selectedCubeIndex < (int)sceneCubes.size()) sceneCubes[selectedCubeIndex].isSelected = false;
                         selectedCubeIndex = clickedCube;
                         sceneCubes[selectedCubeIndex].isSelected = true;
                     }
                 }
                 else {
-                    if (selectedCubeIndex != -1) {
+                    if (selectedCubeIndex != -1 && selectedCubeIndex < (int)sceneCubes.size()) {
                         sceneCubes[selectedCubeIndex].isSelected = false;
                         selectedCubeIndex = -1;
                     }
@@ -444,20 +501,17 @@ int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrev, LPSTR cmd, int show) {
                 triggerDoubleClick = false;
             }
             if (triggerRightClickPicking) {
-                triggerRightClickPicking = false; // ПКМ только для вызова меню
+                triggerRightClickPicking = false;
             }
-            // Рендеринг сцены
             for (const auto& cube : sceneCubes) DrawEditableCube(cube);
-            if (selectedCubeIndex != -1 && !sceneCubes[selectedCubeIndex].isLocked) DrawGizmoArrows(sceneCubes[selectedCubeIndex]);
-            // Текст интерфейса
+            if (selectedCubeIndex != -1 && selectedCubeIndex < (int)sceneCubes.size() && sceneCubes[selectedCubeIndex].exists && !sceneCubes[selectedCubeIndex].isLocked) DrawGizmoArrows(sceneCubes[selectedCubeIndex]);
             glMatrixMode(GL_PROJECTION); glLoadIdentity(); glOrtho(0, screenW, 0, screenH, -1, 1);
             glMatrixMode(GL_MODELVIEW); glLoadIdentity(); glDisable(GL_DEPTH_TEST); glColor3f(1.0f, 1.0f, 1.0f);
             RenderText(15.0f, (float)screenH - 25.0f, uiText);
             RenderText(15.0f, 25.0f, "Double-LMB on Cube: Select (Orange Outline) | LMB Drag on Arrows: Resize Cube | RMB: Menu");
-            if (selectedCubeIndex != -1) { std::string s = "Editing Cube #" + std::to_string(selectedCubeIndex); if (sceneCubes[selectedCubeIndex].isLocked) s += " [LOCKED]"; RenderText(15.0f, (float)screenH - 45.0f, s); }
+            if (selectedCubeIndex != -1 && selectedCubeIndex < (int)sceneCubes.size() && sceneCubes[selectedCubeIndex].exists) { std::string s = "Editing Cube #" + std::to_string(selectedCubeIndex); if (sceneCubes[selectedCubeIndex].isLocked) s += " [LOCKED]"; RenderText(15.0f, (float)screenH - 45.0f, s); }
             glEnable(GL_DEPTH_TEST); SwapBuffers(dc);
         }
     }
     wglMakeCurrent(nullptr, nullptr); wglDeleteContext(rc); ReleaseDC(hwnd, dc); return 0;
 }
-    
