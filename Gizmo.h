@@ -5,25 +5,28 @@
 
 enum GizmoAxis { GIZMO_NONE = 0, GIZMO_X = 1, GIZMO_Y = 2, GIZMO_Z = 3 };
 
-// Структура для хранения одной 3D-вершины файла
 struct Vertex3D {
     float x, y, z;
 };
 
-// Структура для хранения одного полигона (треугольника) файла
 struct Face3D {
     int v1, v2, v3;
 };
 
 struct EditableCube {
     float posX = 0.0f, posY = 0.0f, posZ = 0.0f;
+    unsigned int displayListId = 0; // РРЎРџР РђР’Р›Р•РќРћ: РџРµСЂРµРЅРµСЃР»Рё РІ СЃР°РјС‹Р№ РІРµСЂС… СЃС‚СЂСѓРєС‚СѓСЂС‹
 
-    // Размеры для куба
+    // Р“СЂР°РЅРёС†С‹ РґР»СЏ РєСѓР±Р°
     float xMin = -0.5f, xMax = 0.5f;
     float yMin = -0.5f, yMax = 0.5f;
     float zMin = -0.5f, zMax = 0.5f;
 
-    // Данные для загруженного файла OBJ
+    // РџРµСЂРµРјРµРЅРЅС‹Рµ Р°РїРїР°СЂР°С‚РЅРѕРіРѕ РјР°СЃС€С‚Р°Р±РёСЂРѕРІР°РЅРёСЏ РґР»СЏ РІРёРґРµРѕРєР°СЂС‚С‹ (РґР»СЏ РІС‹СЃРѕРєРѕРіРѕ FPS)
+    float scaleX = 1.0f;
+    float scaleY = 1.0f;
+    float scaleZ = 1.0f;
+
     bool isCustomModel = false;
     std::vector<Vertex3D> vertices;
     std::vector<Face3D> faces;
@@ -32,5 +35,6 @@ struct EditableCube {
     bool isLocked = false;
     bool exists = true;
 };
+
 
 void DrawGizmoArrows(const EditableCube& cube);
